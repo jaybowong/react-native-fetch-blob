@@ -1,7 +1,5 @@
 package com.RNFetchBlob.Response;
 
-import android.util.Log;
-
 import com.RNFetchBlob.RNFetchBlobConst;
 import com.RNFetchBlob.RNFetchBlobPackage;
 import com.RNFetchBlob.RNFetchBlobProgressConfig;
@@ -36,20 +34,24 @@ public class RNFetchBlobFileResp extends ResponseBody {
     ReactApplicationContext rctContext;
     FileOutputStream ofStream;
     RNFetchBlobPackage mBlobPackage;
+    boolean encrypt;
 
-    public RNFetchBlobFileResp(ReactApplicationContext ctx, String taskId, ResponseBody body, String path, boolean overwrite) throws IOException {
+    public RNFetchBlobFileResp(ReactApplicationContext ctx, String taskId, ResponseBody body, String path, boolean overwrite, boolean encrypt) throws IOException {
         super();
         this.rctContext = ctx;
         this.mTaskId = taskId;
         this.originalBody = body;
         assert path != null;
         this.mPath = path;
-        try {
-            Field field = rctContext.getBaseContext().getClass().getDeclaredField("mFetchBlobPackage");
-            field.setAccessible(true);
-            mBlobPackage = (RNFetchBlobPackage) field.get(rctContext.getBaseContext());
-        } catch (Exception e) {
-            e.printStackTrace();
+        this.encrypt = encrypt;
+        if (encrypt) {
+            try {
+                Field field = rctContext.getBaseContext().getClass().getDeclaredField("mFetchBlobPackage");
+                field.setAccessible(true);
+                mBlobPackage = (RNFetchBlobPackage) field.get(rctContext.getBaseContext());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
         if (path != null) {
             boolean appendToExistingFile = !overwrite;
@@ -58,11 +60,11 @@ public class RNFetchBlobFileResp extends ResponseBody {
             File f = new File(path);
 
             File parent = f.getParentFile();
-            if(!parent.exists() && !parent.mkdirs()){
+            if (!parent.exists() && !parent.mkdirs()) {
                 throw new IllegalStateException("Couldn't create dir: " + parent);
             }
 
-            if(f.exists() == false)
+            if (f.exists() == false)
                 f.createNewFile();
             ofStream = new FileOutputStream(new File(path), appendToExistingFile);
         }
@@ -92,13 +94,13 @@ public class RNFetchBlobFileResp extends ResponseBody {
                 long read = originalBody.byteStream().read(bytes, 0, (int) byteCount);
                 bytesDownloaded += read > 0 ? read : 0;
                 if (read > 0) {
-                    if (mBlobPackage != null) {
+                    if (encrypt && mBlobPackage != null) {
                         mBlobPackage.encrypt(bytes, 0, (int) byteCount);
                     }
                     ofStream.write(bytes, 0, (int) read);
                 }
                 RNFetchBlobProgressConfig reportConfig = RNFetchBlobReq.getReportProgress(mTaskId);
-                if (reportConfig != null && contentLength() != 0 &&reportConfig.shouldReport(bytesDownloaded / contentLength())) {
+                if (reportConfig != null && contentLength() != 0 && reportConfig.shouldReport(bytesDownloaded / contentLength())) {
                     WritableMap args = Arguments.createMap();
                     args.putString("taskId", mTaskId);
                     args.putString("written", String.valueOf(bytesDownloaded));
@@ -107,7 +109,7 @@ public class RNFetchBlobFileResp extends ResponseBody {
                             .emit(RNFetchBlobConst.EVENT_PROGRESS, args);
                 }
                 return read;
-            } catch(Exception ex) {
+            } catch (Exception ex) {
                 return -1;
             }
         }
