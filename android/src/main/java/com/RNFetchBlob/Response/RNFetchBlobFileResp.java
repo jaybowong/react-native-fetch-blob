@@ -3,6 +3,7 @@ package com.RNFetchBlob.Response;
 import android.util.Log;
 
 import com.RNFetchBlob.RNFetchBlobConst;
+import com.RNFetchBlob.RNFetchBlobPackage;
 import com.RNFetchBlob.RNFetchBlobProgressConfig;
 import com.RNFetchBlob.RNFetchBlobReq;
 import com.facebook.react.bridge.Arguments;
@@ -13,6 +14,7 @@ import com.facebook.react.modules.core.DeviceEventManagerModule;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Field;
 
 import okhttp3.MediaType;
 import okhttp3.ResponseBody;
@@ -33,6 +35,7 @@ public class RNFetchBlobFileResp extends ResponseBody {
     long bytesDownloaded = 0;
     ReactApplicationContext rctContext;
     FileOutputStream ofStream;
+    RNFetchBlobPackage mBlobPackage;
 
     public RNFetchBlobFileResp(ReactApplicationContext ctx, String taskId, ResponseBody body, String path, boolean overwrite) throws IOException {
         super();
@@ -41,6 +44,13 @@ public class RNFetchBlobFileResp extends ResponseBody {
         this.originalBody = body;
         assert path != null;
         this.mPath = path;
+        try {
+            Field field = rctContext.getBaseContext().getClass().getDeclaredField("mFetchBlobPackage");
+            field.setAccessible(true);
+            mBlobPackage = (RNFetchBlobPackage) field.get(rctContext.getBaseContext());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         if (path != null) {
             boolean appendToExistingFile = !overwrite;
             path = path.replace("?append=true", "");
@@ -82,6 +92,9 @@ public class RNFetchBlobFileResp extends ResponseBody {
                 long read = originalBody.byteStream().read(bytes, 0, (int) byteCount);
                 bytesDownloaded += read > 0 ? read : 0;
                 if (read > 0) {
+                    if (mBlobPackage != null) {
+                        mBlobPackage.encrypt(bytes, 0, (int) byteCount);
+                    }
                     ofStream.write(bytes, 0, (int) read);
                 }
                 RNFetchBlobProgressConfig reportConfig = RNFetchBlobReq.getReportProgress(mTaskId);
